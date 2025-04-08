@@ -1,0 +1,32 @@
+{
+    "gateway": {
+        "port": 3000
+    },
+    "services": [
+        {
+            "name": "public-website",
+            "active": true,
+            "description": "Publicly accessible website homepage",
+            "proxy": {
+                "listenPath": "/public",
+                "upstream": {
+                    "targets": ["http://localhost:3001/"]
+                }
+            }
+        },
+        {
+            "name": "user-api",
+            "active": true,
+            "description": "User management API (JWT Auth, Rate Limited)",
+            "proxy": {
+                "listenPath": "/api/users",
+                "upstream": {
+                    "targets": [
+                        "http://localhost:3002/",
+                        "http://localhost:3005/"
+                    ]
+                }
+            }
+        }
+    ]
+}

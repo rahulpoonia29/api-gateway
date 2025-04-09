@@ -30,7 +30,7 @@ func NewServerStart(app *utils.App) {
 
 	gatewayConfig, err := config.LoadConfig(defaultConfigPath)
 	if err != nil {
-		fmt.Printf("Failed to load configuration: %v\n", err)
+		fmt.Printf("error: failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
 

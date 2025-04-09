@@ -6,11 +6,26 @@ import (
 	"os"
 )
 
+// InitConfig identifies the config file path and verifies it exists
+func InitConfig(cfgFile string) {
+	if cfgFile == "" {
+		cfgFile = "./config.json"
+		fmt.Printf("warning: config file not specified, using default path: %s\n", cfgFile)
+	}
+
+	// Verify config file exists
+	if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
+		fmt.Printf("config file %s does not exist\n", cfgFile)
+		os.Exit(1)
+	}
+
+	fmt.Printf("using config file: %s\n", cfgFile)
+}
+
 func LoadConfig(configPath string) (*GatewayConfig, error) {
 	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Printf("config file does not exist at %s\n", configPath)
-		os.Exit(1)
+		return nil, fmt.Errorf("config file %s does not exist", configPath)
 	}
 
 	jsonFile, err := os.Open(configPath)
@@ -45,17 +60,17 @@ func validateConfig(config *GatewayConfig) error {
 		return fmt.Errorf("no services defined in configuration")
 	}
 
-	//TODO: Validate each service
+	// TODO: Validate each service
 	// for i, service := range config.Services {
-	// 	if service.Name == "" {
-	// 		return fmt.Errorf("service at index %d has no name", i)
-	// 	}
-	// 	if service.URL == "" {
-	// 		return fmt.Errorf("service '%s' has no URL", service.Name)
-	// 	}
-	// 	if service.Timeout <= 0 {
-	// 		return fmt.Errorf("service '%s' has invalid timeout: %d", service.Name, service.Timeout)
-	// 	}
+	//   if service.Name == "" {
+	//     return fmt.Errorf("service at index %d has no name", i)
+	//   }
+	//   if service.URL == "" {
+	//     return fmt.Errorf("service '%s' has no url", service.Name)
+	//   }
+	//   if service.Timeout <= 0 {
+	//     return fmt.Errorf("service '%s' has invalid timeout: %d", service.Name, service.Timeout)
+	//   }
 	// }
 
 	return nil

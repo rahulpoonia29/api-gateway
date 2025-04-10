@@ -10,7 +10,8 @@ import (
 )
 
 func StartServer(port int, app *utils.App) {
-	fmt.Println("Starting API Gateway...")
+	fmt.Println("Starting API Gateway server...")
+	fmt.Printf("Listening on port %d...\n", port)
 
 	hHTTP := &HTTPHandler{
 		app: app,

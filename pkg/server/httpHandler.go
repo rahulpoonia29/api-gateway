@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/rahul/api-gateway/pkg/balancer"
 	"github.com/rahul/api-gateway/pkg/config"
 	"github.com/rahul/api-gateway/utils"
 )
@@ -15,49 +16,55 @@ type HTTPHandler struct {
 	app *utils.App
 }
 
+// ServeHTTP handles incoming HTTP requests.
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	fmt.Printf("Received request: %s %s\n", r.Method, path)
 
-	// Find the longest matching prefix in our route tree
+	// 1. Find the service configuration based on the path
 	key, value, found := h.app.RouteTree.LongestPrefix(path)
-
 	if !found {
 		http.Error(w, "Service not found", http.StatusNotFound)
 		return
 	}
 
-	// Extract the service config from the value
-	service, ok := value.(config.ServiceConfig)
+	serviceConfig, ok := value.(config.ServiceConfig)
 	if !ok {
 		http.Error(w, "Internal gateway error", http.StatusInternalServerError)
 		fmt.Printf("Error: Could not cast route value to ServiceConfig\n")
 		return
 	}
 
-	// Strip the prefix to get the remaining path
-	remainingPath := strings.TrimPrefix(path, key)
-	// Add a leading slash if the remaining path is not empty and does not start with a slash
-	if !strings.HasPrefix(remainingPath, "/") && remainingPath != "" {
-		remainingPath = "/" + remainingPath
-	}
+	// 2. **Middleware Chain (Placeholder):**
+	// In the future, we'll apply middleware here based on serviceConfig
+	// For now, we'll just proceed to proxying.
 
-	if len(service.Proxy.Upstream.Targets) == 0 {
+	// 3. Proxying: Forward the request to the upstream service
+	h.proxyRequest(w, r, serviceConfig, key)
+}
+
+// proxyRequest forwards the request to the upstream service.
+func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, serviceConfig config.ServiceConfig, prefixPath string) {
+	if len(serviceConfig.Proxy.Upstream.Targets) == 0 {
 		http.Error(w, "Service has no upstream targets", http.StatusInternalServerError)
 		return
 	}
 
-	targetURL := service.Proxy.Upstream.Targets[0]
+	// Implement load balancing strategy
+	balancer, err := balancer.NewBalancer(&serviceConfig.Proxy.Upstream)
+	if err != nil {
+		http.Error(w, "Error creating balancer", http.StatusInternalServerError)
+		return
+	}
+
+	targetURL, err := balancer.Elect(serviceConfig.Proxy.Upstream.Targets)
+	if err != nil {
+		http.Error(w, "Error selecting target", http.StatusInternalServerError)
+		return
+	}
 	targetURL = strings.TrimSuffix(targetURL, "/")
 
-	// Forward the request to the upstream service
-	forwardRequest(w, r, targetURL, remainingPath)
-}
-
-// Forward the request to the upstream target
-func forwardRequest(w http.ResponseWriter, r *http.Request, targetURL string, remainingPath string) {
-	// Parse the target URL
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		http.Error(w, "Invalid upstream URL", http.StatusInternalServerError)
@@ -65,20 +72,26 @@ func forwardRequest(w http.ResponseWriter, r *http.Request, targetURL string, re
 		return
 	}
 
-	// Create the reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Update the request URL
-	r.URL.Path = remainingPath
-	r.URL.Host = target.Host
-	r.URL.Scheme = target.Scheme
+	// Prepare to modify the request *before* forwarding
+	director := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		director(req) // Call the original director
 
-	// Update the request Host header to match the target
-	r.Host = target.Host
+		// Modify request path based on configuration (example: strip prefix)
+		remainingPath := strings.TrimPrefix(req.URL.Path, prefixPath)
+		if !strings.HasPrefix(remainingPath, "/") && remainingPath != "" {
+			remainingPath = "/" + remainingPath
+		}
+		req.URL.Path = remainingPath
 
-	// Log the forwarding
-	fmt.Printf("Forwarding to: %s%s\n", targetURL, remainingPath)
+		// Optionally, you could modify headers here if needed based on serviceConfig
+		// req.Header.Set("X-Gateway-Version", "1.0") // Example
+	}
 
-	// Forward the request
+	// Log forwarding action
+	fmt.Printf("Forwarding to: %s%s\n", targetURL, r.URL.Path)
+
 	proxy.ServeHTTP(w, r)
 }

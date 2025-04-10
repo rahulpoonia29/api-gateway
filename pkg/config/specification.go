@@ -33,9 +33,18 @@ type ProxyConfig struct {
 
 // UpstreamConfig defines upstream service configuration
 type UpstreamConfig struct {
-	// Balancing string           `json:"balancing"` // roundrobin, least_conn, ip_hash
-	Targets []string `json:"targets"`
+	Balancing BalancingStrategy `json:"balancing"` // Load balancing algorithm to use
+	Targets   []string          `json:"targets"`
 }
+
+// BalancingStrategy defines the available load balancing algorithms
+type BalancingStrategy string
+
+const (
+	RoundRobin BalancingStrategy = "roundrobin"
+	LeastConn  BalancingStrategy = "least_conn"
+	IPHash     BalancingStrategy = "ip_hash"
+)
 
 // AuthenticationConfig defines authentication settings for a route
 // type AuthenticationConfig struct {

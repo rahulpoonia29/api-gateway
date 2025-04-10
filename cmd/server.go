@@ -35,20 +35,16 @@ func NewServerStart(app *utils.App) {
 	}
 
 	r := radix.New()
+
+	// Insert all the services into the radix tree
 	for _, service := range gatewayConfig.Services {
+		if !service.Active {
+			continue
+		}
 		r.Insert(service.Proxy.ListenPath, service)
 	}
 
 	app.RouteTree = r
-
-	// if value != nil {
-	// 	serviceConfig, ok := value.(config.ServiceConfig)
-	// 	if ok {
-	// 		fmt.Printf("service name: %s\n", serviceConfig.Proxy.Upstream.Targets[0])
-	// 	} else {
-	// 		fmt.Println("Could not cast value to ServiceConfig")
-	// 	}
-	// }
 
 	server.StartServer(gatewayConfig.Gateway.Port, app)
 }

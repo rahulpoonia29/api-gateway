@@ -45,17 +45,15 @@ func startServer(cmd *cobra.Command) error {
 		}
 	}
 
-	logger.Info("Configuration loaded", "services_count", len(gatewayConfig.Services))
+	logger.Debug("Configuration loaded", "services_count", len(gatewayConfig.Services))
 
 	routeTree := loadServices(gatewayConfig.Services)
-	logger.Info("Routes loaded", "count", routeTree.Len())
 
 	app := &utils.App{
 		RouteTree: routeTree,
 		Logger:    logger,
 	}
 
-	logger.Info("Starting API Gateway server", "port", gatewayConfig.Gateway.Port)
 	return server.StartServer(gatewayConfig.Gateway.Port, app)
 }
 

@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/armon/go-radix"
 	"github.com/rahul/api-gateway/pkg/config"
+	"github.com/rahul/api-gateway/pkg/logging"
 	"github.com/rahul/api-gateway/pkg/server"
 	"github.com/rahul/api-gateway/utils"
 	"github.com/spf13/cobra"
@@ -13,55 +13,59 @@ import (
 
 // NewServerStartCMD creates a new command to start a new http server
 func NewServerStartCMD() *cobra.Command {
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "start",
 		Short: "Start the API Gateway server",
 		Long:  "This command initializes and starts the API Gateway server, configuring all routes from the configuration file and handling incoming HTTP requests.",
-		Run: func(cmd *cobra.Command, args []string) {
-			NewServerStart(cmd, args)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return startServer(cmd)
 		},
 	}
-
-	return cmd
 }
 
-func NewServerStart(cmd *cobra.Command, args []string) {
-	// Initialize structured logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+func startServer(cmd *cobra.Command) error {
+	logger := logging.ConfigureLogger(slog.LevelInfo)
 
-	// Get configuration file path from flags
 	configPath, err := cmd.Flags().GetString("config")
 	if err != nil {
-		logger.Error("error getting config flag", "error", err)
+		logger.Error("Error getting config flag", "error", err)
+		return err
 	}
 
-	var defaultConfigPath = "./config.json"
-	if configPath == "" {
-		configPath = defaultConfigPath
-		logger.Warn("config file not specified, using default path", "path", configPath)
-	}
-
-	// Validate and load configuration
-	gatewayConfig, err := config.LoadConfig(defaultConfigPath)
+	gatewayConfig, err := config.LoadConfig(configPath, logger)
 	if err != nil {
-		logger.Error("error loading configuration", "error", err)
-		os.Exit(1)
+		logger.Error("Error loading configuration", "error", err)
+		return err
 	}
 
-	r := radix.New()
+	if gatewayConfig.Gateway.LogLevel != "" {
+		if err = logging.UpdateLogLevel(logger, gatewayConfig.Gateway.LogLevel); err != nil {
+			logger.Warn("Error updating log level, falling back to INFO", "error", err)
+			logging.UpdateLogLevel(logger, config.Info)
+		}
+	}
 
-	// Insert all the services into the radix tree
-	for _, service := range gatewayConfig.Services {
+	logger.Info("Configuration loaded", "services_count", len(gatewayConfig.Services))
+
+	routeTree := loadServices(gatewayConfig.Services)
+	logger.Info("Routes loaded", "count", routeTree.Len())
+
+	app := &utils.App{
+		RouteTree: routeTree,
+		Logger:    logger,
+	}
+
+	logger.Info("Starting API Gateway server", "port", gatewayConfig.Gateway.Port)
+	return server.StartServer(gatewayConfig.Gateway.Port, app)
+}
+
+func loadServices(services []config.ServiceConfig) *radix.Tree {
+	r := radix.New()
+	for _, service := range services {
 		if !service.Active {
 			continue
 		}
 		r.Insert(service.Proxy.ListenPath, service)
 	}
-
-	app := &utils.App{}
-
-	app.RouteTree = r
-	app.Logger = logger
-
-	server.StartServer(gatewayConfig.Gateway.Port, app)
+	return r
 }

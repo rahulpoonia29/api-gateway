@@ -19,16 +19,15 @@ var cfgFile string
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		fmt.Println("failed to execute command:", err)
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Define flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file path (default is ./config.json)")
+	// Define persistent flags shared across all commands
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "./config.json", "config file path")
 
 	// Add commands
 	rootCmd.AddCommand(NewServerStartCMD())

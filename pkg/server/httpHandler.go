@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -20,19 +19,23 @@ type HTTPHandler struct {
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	fmt.Printf("Received request: %s %s\n", r.Method, path)
+	h.app.Logger.Debug("received request",
+		"method", r.Method,
+		"path", path,
+		"remoteAddr", r.RemoteAddr)
 
 	// 1. Find the service configuration based on the path
 	key, value, found := h.app.RouteTree.LongestPrefix(path)
 	if !found {
+		h.app.Logger.Warn("service not found for path", "path", path)
 		http.Error(w, "Service not found", http.StatusNotFound)
 		return
 	}
 
 	serviceConfig, ok := value.(config.ServiceConfig)
 	if !ok {
+		h.app.Logger.Error("failed to cast route value to ServiceConfig", "path", path)
 		http.Error(w, "Internal gateway error", http.StatusInternalServerError)
-		fmt.Printf("Error: Could not cast route value to ServiceConfig\n")
 		return
 	}
 
@@ -47,6 +50,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // proxyRequest forwards the request to the upstream service.
 func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, serviceConfig config.ServiceConfig, prefixPath string) {
 	if len(serviceConfig.Proxy.Upstream.Targets) == 0 {
+		h.app.Logger.Error("service has no upstream targets", "service", serviceConfig.Name)
 		http.Error(w, "Service has no upstream targets", http.StatusInternalServerError)
 		return
 	}
@@ -54,12 +58,19 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 	// Implement load balancing strategy
 	balancer, err := balancer.NewBalancer(&serviceConfig.Proxy.Upstream)
 	if err != nil {
+		h.app.Logger.Error("error creating balancer",
+			"service", serviceConfig.Name,
+			"strategy", serviceConfig.Proxy.Upstream.Balancing,
+			"error", err)
 		http.Error(w, "Error creating balancer", http.StatusInternalServerError)
 		return
 	}
 
 	targetURL, err := balancer.Elect(serviceConfig.Proxy.Upstream.Targets)
 	if err != nil {
+		h.app.Logger.Error("error selecting target",
+			"service", serviceConfig.Name,
+			"error", err)
 		http.Error(w, "Error selecting target", http.StatusInternalServerError)
 		return
 	}
@@ -67,8 +78,11 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 
 	target, err := url.Parse(targetURL)
 	if err != nil {
+		h.app.Logger.Error("invalid upstream URL",
+			"service", serviceConfig.Name,
+			"url", targetURL,
+			"error", err)
 		http.Error(w, "Invalid upstream URL", http.StatusInternalServerError)
-		fmt.Printf("Error parsing target URL '%s': %v\n", targetURL, err)
 		return
 	}
 
@@ -91,7 +105,10 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 	}
 
 	// Log forwarding action
-	fmt.Printf("Forwarding to: %s%s\n", targetURL, r.URL.Path)
+	h.app.Logger.Info("forwarding request",
+		"service", serviceConfig.Name,
+		"target", targetURL,
+		"path", r.URL.Path)
 
 	proxy.ServeHTTP(w, r)
 }

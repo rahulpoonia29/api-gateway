@@ -1,17 +1,27 @@
 package config
 
-// GatewayConfig represents the main configuration structure for the API gateway
+// Main configuration structure for the API gateway
 type GatewayConfig struct {
 	Gateway  GatewaySettings `json:"gateway"`
 	Services []ServiceConfig `json:"services"`
 }
 
-// GatewaySettings contains basic settings for the gateway
+type LogLevel string
+
+const (
+	Info  LogLevel = "info"
+	Debug LogLevel = "debug"
+	Warn  LogLevel = "warn"
+	Error LogLevel = "error"
+)
+
+// Basic settings for the gateway
 type GatewaySettings struct {
-	Port int `json:"port"`
+	Port     int      `json:"port"`
+	LogLevel LogLevel `json:"logLevel"`
 }
 
-// ServiceConfig represents configuration for an API service
+// Configuration for an API services
 type ServiceConfig struct {
 	Name        string      `json:"name"`
 	Active      bool        `json:"active"`

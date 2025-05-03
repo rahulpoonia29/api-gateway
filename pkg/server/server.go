@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/rahul/api-gateway/utils"
 )
 
-func StartServer(port int, app *utils.App) {
+// StartServer initializes and starts the HTTP server for the API gateway
+func StartServer(port int, app *utils.App) error {
 	app.Logger.Info("starting API gateway server", "port", port)
 
 	hHTTP := &HTTPHandler{
@@ -18,12 +18,19 @@ func StartServer(port int, app *utils.App) {
 
 	http.Handle("/", hHTTP)
 
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	serverAddr := fmt.Sprintf(":%d", port)
+	app.Logger.Info("server listening", "address", serverAddr)
 
+	err := http.ListenAndServe(serverAddr, nil)
+
+	// Check for specific errors
 	if errors.Is(err, http.ErrServerClosed) {
-		fmt.Println("Server is closed")
+		app.Logger.Info("server closed")
+		return nil
 	} else if err != nil {
-		fmt.Printf("Error starting server: %s\n", err)
-		os.Exit(1)
+		app.Logger.Error("error starting server", "error", err)
+		return err
 	}
+
+	return nil
 }

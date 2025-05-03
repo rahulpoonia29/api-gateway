@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/armon/go-radix"
@@ -12,25 +12,39 @@ import (
 )
 
 // NewServerStartCMD creates a new command to start a new http server
-func NewServerStartCMD(app *utils.App) *cobra.Command {
+func NewServerStartCMD() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the API Gateway server",
-		Long:  "This command starts the API Gateway server and listens for incoming requests.",
+		Long:  "This command initializes and starts the API Gateway server, configuring all routes from the configuration file and handling incoming HTTP requests.",
 		Run: func(cmd *cobra.Command, args []string) {
-			NewServerStart(app)
+			NewServerStart(cmd, args)
 		},
 	}
 
 	return cmd
 }
 
-func NewServerStart(app *utils.App) {
-	var defaultConfigPath = "./config.json"
+func NewServerStart(cmd *cobra.Command, args []string) {
+	// Initialize structured logger
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	// Get configuration file path from flags
+	configPath, err := cmd.Flags().GetString("config")
+	if err != nil {
+		logger.Error("error getting config flag", "error", err)
+	}
+
+	var defaultConfigPath = "./config.json"
+	if configPath == "" {
+		configPath = defaultConfigPath
+		logger.Warn("config file not specified, using default path", "path", configPath)
+	}
+
+	// Validate and load configuration
 	gatewayConfig, err := config.LoadConfig(defaultConfigPath)
 	if err != nil {
-		fmt.Printf("error: failed to load configuration: %v\n", err)
+		logger.Error("error loading configuration", "error", err)
 		os.Exit(1)
 	}
 
@@ -44,7 +58,10 @@ func NewServerStart(app *utils.App) {
 		r.Insert(service.Proxy.ListenPath, service)
 	}
 
+	app := &utils.App{}
+
 	app.RouteTree = r
+	app.Logger = logger
 
 	server.StartServer(gatewayConfig.Gateway.Port, app)
 }

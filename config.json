@@ -10,7 +10,7 @@
             "proxy": {
                 "listenPath": "/public",
                 "upstream": {
-                    "balancing": "round-robin",
+                    "balancing": "roundrobin",
                     "targets": ["http://localhost:3001/"]
                 }
             }
@@ -22,7 +22,7 @@
             "proxy": {
                 "listenPath": "/api/users",
                 "upstream": {
-                    "balancing": "round-robin",
+                    "balancing": "roundrobin",
                     "targets": [
                         "http://localhost:3002/",
                         "http://localhost:3005/"

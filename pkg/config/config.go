@@ -7,7 +7,7 @@ import (
 )
 
 // InitConfig identifies the config file path and verifies it exists
-func InitConfig(cfgFile string) {
+func Va(cfgFile string) {
 	if cfgFile == "" {
 		cfgFile = "./config.json"
 		fmt.Printf("warning: config file not specified, using default path: %s\n", cfgFile)

@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/armon/go-radix"
-	"github.com/rahul/api-gateway/pkg/config"
-	"github.com/rahul/api-gateway/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -14,11 +11,8 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "api-gateway",
 	Short: "A simple API gateway",
-	Long:  `A simple API gateway written in Go.`,
+	Long:  `A simple API gateway written in Go. Provides routing, authentication, rate limiting, etc.`,
 }
-
-// Global application instance
-var app *utils.App
 
 // Configuration file path
 var cfgFile string
@@ -33,18 +27,9 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(func() {
-		config.InitConfig(cfgFile)
-	})
-
 	// Define flags
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path (default is ./config.json)")
-
-	// Initialize app
-	app = &utils.App{
-		RouteTree: radix.New(),
-	}
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file path (default is ./config.json)")
 
 	// Add commands
-	rootCmd.AddCommand(NewServerStartCMD(app))
+	rootCmd.AddCommand(NewServerStartCMD())
 }

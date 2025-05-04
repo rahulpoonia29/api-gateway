@@ -12,17 +12,22 @@ import (
 )
 
 type HTTPHandler struct {
-	app *utils.App
+	app       *utils.App
+	balancers map[string]balancer.Balancer
+}
+
+func NewHTTPHandler(app *utils.App) *HTTPHandler {
+	return &HTTPHandler{
+		app:       app,
+		balancers: make(map[string]balancer.Balancer, 0),
+	}
 }
 
 // ServeHTTP handles incoming HTTP requests.
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	h.app.Logger.Debug("received request",
-		"method", r.Method,
-		"path", path,
-		"remoteAddr", r.RemoteAddr)
+	h.app.Logger.Debug("received request", "method", r.Method, "path", path)
 
 	// 1. Find the service configuration based on the path
 	key, value, found := h.app.RouteTree.LongestPrefix(path)
@@ -56,17 +61,23 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 	}
 
 	// Implement load balancing strategy
-	balancer, err := balancer.NewBalancer(&serviceConfig.Proxy.Upstream)
-	if err != nil {
-		h.app.Logger.Error("error creating balancer",
-			"service", serviceConfig.Name,
-			"strategy", serviceConfig.Proxy.Upstream.Balancing,
-			"error", err)
-		http.Error(w, "Error creating balancer", http.StatusInternalServerError)
-		return
+	b, ok := h.balancers[serviceConfig.Name]
+	if !ok {
+		// Balancer does not exist, create a new one
+		newBalancer, err := balancer.NewBalancer(&serviceConfig.Proxy.Upstream)
+		if err != nil {
+			h.app.Logger.Error("error creating balancer",
+				"service", serviceConfig.Name,
+				"strategy", serviceConfig.Proxy.Upstream.Balancing,
+				"error", err)
+			http.Error(w, "Error creating balancer", http.StatusInternalServerError)
+			return
+		}
+		h.balancers[serviceConfig.Name] = newBalancer
+		b = newBalancer
 	}
 
-	targetURL, err := balancer.Elect(serviceConfig.Proxy.Upstream.Targets)
+	targetURL, err := b.Elect()
 	if err != nil {
 		h.app.Logger.Error("error selecting target",
 			"service", serviceConfig.Name,
@@ -76,6 +87,7 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 	}
 	targetURL = strings.TrimSuffix(targetURL, "/")
 
+	// Parse the target URL
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		h.app.Logger.Error("invalid upstream URL",
@@ -86,22 +98,28 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 		return
 	}
 
+	// Create the reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Prepare to modify the request *before* forwarding
-	director := proxy.Director
+	// Modify the request path based on configuration
 	proxy.Director = func(req *http.Request) {
-		director(req) // Call the original director
-
-		// Modify request path based on configuration (example: strip prefix)
 		remainingPath := strings.TrimPrefix(req.URL.Path, prefixPath)
 		if !strings.HasPrefix(remainingPath, "/") && remainingPath != "" {
 			remainingPath = "/" + remainingPath
 		}
+
+		// Set the scheme, host, and path for the request
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
 		req.URL.Path = remainingPath
 
-		// Optionally, you could modify headers here if needed based on serviceConfig
-		// req.Header.Set("X-Gateway-Version", "1.0") // Example
+		// Preserve RawQuery if any
+		if target.RawQuery != "" {
+			req.URL.RawQuery = target.RawQuery
+		}
+
+		//TODO: add any additional headers or modifications to the request here
+		// req.Header.Set("X-Gateway-Version", "1.0")
 	}
 
 	// Log forwarding action
@@ -110,5 +128,6 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 		"target", targetURL,
 		"path", r.URL.Path)
 
+	// Use the reverse proxy to forward the request to the upstream target
 	proxy.ServeHTTP(w, r)
 }

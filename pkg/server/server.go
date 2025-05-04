@@ -19,9 +19,7 @@ func StartServer(port int, app *utils.App) error {
 	logger := app.Logger.With("component", "server", "port", port)
 
 	addr := fmt.Sprintf(":%d", port)
-	hHTTP := &HTTPHandler{
-		app: app,
-	}
+	hHTTP := NewHTTPHandler(app)
 
 	server := &http.Server{
 		Addr:    addr,

@@ -7,7 +7,7 @@ import (
 )
 
 type Balancer interface {
-	Elect(targets []string) (string, error)
+	Elect() (string, error)
 }
 
 func NewBalancer(upstream *config.UpstreamConfig) (Balancer, error) {
@@ -16,7 +16,7 @@ func NewBalancer(upstream *config.UpstreamConfig) (Balancer, error) {
 
 	switch upstream.Balancing {
 	case config.RoundRobin:
-		balancer = newRoundrobinBalancer()
+		balancer = newRoundrobinBalancer(upstream.Targets)
 	default:
 		err = errors.New("unsupported load balancing strategy")
 

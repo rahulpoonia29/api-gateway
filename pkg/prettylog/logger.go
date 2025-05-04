@@ -1,4 +1,4 @@
-package logging
+package prettylog
 
 import (
 	"log/slog"
@@ -8,14 +8,9 @@ import (
 )
 
 func ConfigureLogger(logLevel slog.Level) *slog.Logger {
-	levelVar := new(slog.LevelVar)
-	levelVar.Set(logLevel)
+	handler := NewPrettyHandler(os.Stdout, logLevel)
 
-	handlerOptions := &slog.HandlerOptions{
-		Level: levelVar,
-	}
-
-	return slog.New(slog.NewTextHandler(os.Stdout, handlerOptions))
+	return slog.New(handler)
 }
 
 func UpdateLogLevel(logger *slog.Logger, logLevelStr config.LogLevel) error {
@@ -35,13 +30,11 @@ func UpdateLogLevel(logger *slog.Logger, logLevelStr config.LogLevel) error {
 		return nil
 	}
 
-	// Replace the handler with a new one using the updated level
-	newHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
-	})
+	// Create a new pretty handler with the updated level
+	newHandler := NewPrettyHandler(os.Stdout, logLevel.Level())
 
-	slog.SetDefault(slog.New(newHandler))
-	*logger = *slog.Default()
+	// Replace the logger with the updated handler
+	*logger = *slog.New(newHandler)
 
 	return nil
 }

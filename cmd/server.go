@@ -5,7 +5,8 @@ import (
 
 	"github.com/armon/go-radix"
 	"github.com/rahul/api-gateway/pkg/config"
-	"github.com/rahul/api-gateway/pkg/logging"
+	"github.com/rahul/api-gateway/pkg/prettylog"
+
 	"github.com/rahul/api-gateway/pkg/server"
 	"github.com/rahul/api-gateway/utils"
 	"github.com/spf13/cobra"
@@ -24,7 +25,7 @@ func NewServerStartCMD() *cobra.Command {
 }
 
 func startServer(cmd *cobra.Command) error {
-	logger := logging.ConfigureLogger(slog.LevelDebug)
+	logger := prettylog.ConfigureLogger(slog.LevelDebug)
 
 	configPath, err := cmd.Flags().GetString("config")
 	if err != nil {
@@ -39,9 +40,9 @@ func startServer(cmd *cobra.Command) error {
 	}
 
 	if gatewayConfig.Gateway.LogLevel != "" {
-		if err = logging.UpdateLogLevel(logger, gatewayConfig.Gateway.LogLevel); err != nil {
+		if err = prettylog.UpdateLogLevel(logger, gatewayConfig.Gateway.LogLevel); err != nil {
 			logger.Warn("Error updating log level, falling back to INFO", "error", err)
-			logging.UpdateLogLevel(logger, config.Info)
+			prettylog.UpdateLogLevel(logger, config.Info)
 		}
 	}
 

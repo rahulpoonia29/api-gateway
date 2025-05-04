@@ -34,14 +34,14 @@ func LoadConfig(configPath string, logger *slog.Logger) (*GatewayConfig, error) 
 		return nil, fmt.Errorf("error parsing config file: %w", err)
 	}
 
-	if err := validateConfig(config); err != nil {
+	if err := validateConfig(config, logger); err != nil {
 		return nil, err
 	}
 
 	return config, nil
 }
 
-func validateConfig(config *GatewayConfig) error {
+func validateConfig(config *GatewayConfig, logger *slog.Logger) error {
 	if err := validateGatewaySettings(&config.Gateway); err != nil {
 		return fmt.Errorf("gateway settings validation failed: %w", err)
 	}
@@ -51,7 +51,7 @@ func validateConfig(config *GatewayConfig) error {
 	}
 
 	for i, service := range config.Services {
-		if err := validateServiceConfig(&service, i); err != nil {
+		if err := validateServiceConfig(&service, i, logger); err != nil {
 			return err
 		}
 	}
@@ -77,7 +77,7 @@ func validateGatewaySettings(settings *GatewaySettings) error {
 	return nil
 }
 
-func validateServiceConfig(service *ServiceConfig, index int) error {
+func validateServiceConfig(service *ServiceConfig, index int, logger *slog.Logger) error {
 	if service.Name == "" {
 		return fmt.Errorf("service at index %d has no name", index)
 	}
@@ -88,6 +88,10 @@ func validateServiceConfig(service *ServiceConfig, index int) error {
 
 	if !strings.HasPrefix(service.Proxy.ListenPath, "/") {
 		return fmt.Errorf("service '%s' listen path must start with a '/'", service.Name)
+	}
+
+	if !service.Enabled {
+		logger.Debug("Service is disabled", "service", service.Name)
 	}
 
 	return validateUpstreamConfig(&service.Proxy.Upstream, service.Name)

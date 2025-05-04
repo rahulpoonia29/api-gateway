@@ -24,8 +24,8 @@ type GatewaySettings struct {
 // Configuration for an API services
 type ServiceConfig struct {
 	Name        string      `json:"name"`
-	Active      bool        `json:"active"`
 	Description string      `json:"description,omitempty"`
+	Enabled     bool        `json:"enabled,omitempty"`
 	Proxy       ProxyConfig `json:"proxy"`
 	// Authentication *AuthenticationConfig `json:"authentication,omitempty"`
 	// RateLimit      *RateLimitConfig      `json:"rateLimit,omitempty"`

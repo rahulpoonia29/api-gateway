@@ -24,7 +24,7 @@ func NewServerStartCMD() *cobra.Command {
 }
 
 func startServer(cmd *cobra.Command) error {
-	logger := logging.ConfigureLogger(slog.LevelInfo)
+	logger := logging.ConfigureLogger(slog.LevelDebug)
 
 	configPath, err := cmd.Flags().GetString("config")
 	if err != nil {
@@ -60,7 +60,7 @@ func startServer(cmd *cobra.Command) error {
 func loadServices(services []config.ServiceConfig) *radix.Tree {
 	r := radix.New()
 	for _, service := range services {
-		if !service.Active {
+		if !service.Enabled {
 			continue
 		}
 		r.Insert(service.Proxy.ListenPath, service)

@@ -1,24 +1,24 @@
 {
     "gateway": {
         "port": 3000,
-        "logLevel": "info"
+        "logLevel": "debug"
     },
     "services": [
         {
             "name": "public-website",
-            "active": true,
+            "enabled": true,
             "description": "Publicly accessible website homepage",
             "proxy": {
-                "listenPath": "/public",
+                "listenPath": "/google",
                 "upstream": {
                     "balancing": "roundrobin",
-                    "targets": ["http://localhost:3001/"]
+                    "targets": ["https://google.com/"]
                 }
             }
         },
         {
             "name": "user-api",
-            "active": true,
+            "enabled": true,
             "description": "User management API (JWT Auth, Rate Limited)",
             "proxy": {
                 "listenPath": "/api/users",

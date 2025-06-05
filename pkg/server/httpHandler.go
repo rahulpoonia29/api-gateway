@@ -61,9 +61,8 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 	}
 
 	// Implement load balancing strategy
-	b, ok := h.balancers[serviceConfig.Name]
+	existingBalancer, ok := h.balancers[serviceConfig.Name]
 	if !ok {
-		// Balancer does not exist, create a new one
 		newBalancer, err := balancer.NewBalancer(&serviceConfig.Proxy.Upstream)
 		if err != nil {
 			h.app.Logger.Error("error creating balancer",
@@ -74,20 +73,19 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 			return
 		}
 		h.balancers[serviceConfig.Name] = newBalancer
-		b = newBalancer
+		existingBalancer = newBalancer
 	}
 
-	targetURL, err := b.Elect()
+	targetURL, err := existingBalancer.Elect()
 	if err != nil {
 		h.app.Logger.Error("error selecting target",
 			"service", serviceConfig.Name,
 			"error", err)
-		http.Error(w, "Error selecting target", http.StatusInternalServerError)
+		http.Error(w, "Error selecting upstream target", http.StatusInternalServerError)
 		return
 	}
 	targetURL = strings.TrimSuffix(targetURL, "/")
 
-	// Parse the target URL
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		h.app.Logger.Error("invalid upstream URL",
@@ -98,28 +96,39 @@ func (h *HTTPHandler) proxyRequest(w http.ResponseWriter, r *http.Request, servi
 		return
 	}
 
-	// Create the reverse proxy
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	// Modify the request path based on configuration
 	proxy.Director = func(req *http.Request) {
-		remainingPath := strings.TrimPrefix(req.URL.Path, prefixPath)
-		if !strings.HasPrefix(remainingPath, "/") && remainingPath != "" {
-			remainingPath = "/" + remainingPath
+		if !strings.HasSuffix(prefixPath, "/") {
+			prefixPath += "/"
 		}
 
-		// Set the scheme, host, and path for the request
+		remainingPath := strings.TrimPrefix(req.URL.Path, prefixPath)
+
+		if !strings.HasSuffix(remainingPath, "/") {
+			remainingPath += "/"
+		}
+
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		req.URL.Path = remainingPath
 
-		// Preserve RawQuery if any
 		if target.RawQuery != "" {
 			req.URL.RawQuery = target.RawQuery
 		}
 
-		//TODO: add any additional headers or modifications to the request here
-		// req.Header.Set("X-Gateway-Version", "1.0")
+		// Forward all original headers
+		for name, values := range r.Header {
+			for _, value := range values {
+				req.Header.Add(name, value)
+			}
+		}
+
+		// Set custom gateway headers
+		req.Header.Set("X-Gateway-Version", "0.1")
+		req.Header.Set("X-Gateway-Service", serviceConfig.Name)
+
 	}
 
 	// Log forwarding action
